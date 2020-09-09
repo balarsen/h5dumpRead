@@ -1,5 +1,13 @@
+import functools
 import gzip
 import os
+import re
+
+# get the filename from a line: 'HDF5 "rbspa_hope_eff_2018.h5" {'
+hdf5_re = re.compile(r'.*HDF5.*"([A-Za-z0-9_\./\\-]*)"')
+
+# get the group from a line: 'GROUP "/" {',
+group_re = re.compile(r'.*GROUP.*"([A-Za-z0-9_\./\\-]*)"')
 
 
 class H5dump(object):
@@ -18,6 +26,7 @@ class H5dump(object):
                 dat = fp.readlines()
         self.raw = [v.strip().decode(encoding='UTF-8', errors='strict') for v in dat]
         self.HDF5 = self._get_HDF5()
+        self.GROUPS = self._get_GROUPS()
 
     def __repr__(self):
         """
@@ -27,18 +36,22 @@ class H5dump(object):
 
     __str__ = __repr__
 
-    def _get_HDF5(self):
+    def _regex_matcher_top(self, regex, retlist=True):
         """
-        get the name of the hd5 file that was dumped
-        :return: :class:`str`, name of the hdf5 file
+        method to find top level matches within the file (HDF5, GROUPS)
+
+        :param regex: :class:`re.Pattern`, the regex to use for the match
+        :return: :class:`list`, the matched items from the file
         """
-        from regex import hdf5_re
-        newlist = list(filter(hdf5_re.match, self.raw))
-        files = [hdf5_re.search(v).groups()[0] for v in newlist]
-        if len(files) == 1:
-            return files[0]
+        newlist = list(filter(regex.match, self.raw))
+        ans = [regex.search(v).groups()[0] for v in newlist]
+        if not retlist and len(ans) == 1:
+            return ans[0]
         else:
-            return files
+            return ans
+
+    _get_GROUPS = functools.partialmethod(_regex_matcher_top, group_re)
+    _get_HDF5 = functools.partialmethod(_regex_matcher_top, hdf5_re)
 
 
 if __name__ == "__main__":
