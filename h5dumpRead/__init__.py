@@ -13,7 +13,11 @@ group_re = re.compile(r'.*GROUP.*"([A-Za-z0-9_\./\\-]*)"')
 # get the datasets from a line: 'DATASET "ele_eff" {',
 dataset_re = re.compile(r'.*DATASET.*"([A-Za-z0-9_\./\\-]*)"')
 
-# Extent = namedtuple('Extent', ['start', 'end'])
+# get the compression amount: 'SIZE 22 (1.818:1 COMPRESSION)'
+# TODO make sure this only matches a number
+comp_ratio_re = re.compile(r'.*SIZE.*\((.*)\:1.*COMPRESSION.*')
+
+# Boundary = namedtuple('Extent', ['start', 'end'])
 Boundary = namedtuple('Boundary', ['kind', 'start', 'end'])
 
 
@@ -75,10 +79,10 @@ class H5dump(object):
         for ii in range(startind + 1, len(self.raw)):
             if '{' in self.raw[ii]:
                 opens += 1
-                print('{', ii, self.raw[ii], opens, closed)
+                # print('{', ii, self.raw[ii], opens, closed)
             if '}' in self.raw[ii]:
                 closed += 1
-                print('}', ii, self.raw[ii], opens, closed)
+                # print('}', ii, self.raw[ii], opens, closed)
             if closed == opens:
                 break
         return ii
@@ -120,13 +124,32 @@ class H5dump(object):
                 newlist = list(
                     filter(dataset_re.match, self.raw[self.BOUNDARIES[group].start:self.BOUNDARIES[group].end]))
             except KeyError:
-                raise KeyError('Group "{}" not in this file'.format(group))
+                raise KeyError('Dataset "{}" not in this file'.format(group))
             # TODO check with a named group here!
             datasets = [os.path.join(group, dataset_re.search(v).groups()[0]) for v in newlist]
             inds = [self.raw.index(v) for v in newlist]
             for ii, ds in zip(inds, datasets):
                 ind2 = self._get_boundary(ii)
                 out[ds] = Boundary(kind='DATASET', start=ii, end=ind2)
+        return out
+
+    def get_dataset_compression_ratio(self):
+        """
+        loop over the datasets and get the compression ratio of each
+
+        :return: :class:`dict`, the dataset and its compression ratio (XXXX:1)
+        """
+        out = {}
+        for bdy in self.BOUNDARIES:
+            if self.BOUNDARIES[bdy].kind != 'DATASET':
+                continue
+            newlist = list(
+                filter(comp_ratio_re.match, self.raw[self.BOUNDARIES[bdy].start:self.BOUNDARIES[bdy].end]))
+            if newlist:
+                ratio = float([comp_ratio_re.search(v).groups()[0] for v in newlist][0])
+            else:
+                ratio = None
+            out[bdy] = ratio
         return out
 
 
