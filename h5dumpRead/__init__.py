@@ -11,7 +11,7 @@ hdf5_re = re.compile(r'.*HDF5.*"([A-Za-z0-9_\./\\-]*)"')
 group_re = re.compile(r'.*GROUP.*"([A-Za-z0-9_\./\\-]*)"')
 
 # Extent = namedtuple('Extent', ['start', 'end'])
-Boundary = namedtuple('Boundary', ['type', 'start', 'end'])
+Boundary = namedtuple('Boundary', ['kind', 'start', 'end'])
 
 
 class H5dump(object):
@@ -77,7 +77,7 @@ class H5dump(object):
                         opens += 1
                     if '}' in self.raw[ii]:
                         closed += 1
-            out[g] = Boundary(type='GROUP', start=ind1, end=ii)
+            out[g] = Boundary(kind='GROUP', start=ind1, end=ii)
         return out
 
 
