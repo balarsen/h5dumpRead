@@ -2,12 +2,16 @@ import functools
 import gzip
 import os
 import re
+from collections import namedtuple
 
 # get the filename from a line: 'HDF5 "rbspa_hope_eff_2018.h5" {'
 hdf5_re = re.compile(r'.*HDF5.*"([A-Za-z0-9_\./\\-]*)"')
 
 # get the group from a line: 'GROUP "/" {',
 group_re = re.compile(r'.*GROUP.*"([A-Za-z0-9_\./\\-]*)"')
+
+# Extent = namedtuple('Extent', ['start', 'end'])
+Boundary = namedtuple('Boundary', ['type', 'start', 'end'])
 
 
 class H5dump(object):
@@ -27,6 +31,7 @@ class H5dump(object):
         self.raw = [v.strip().decode(encoding='UTF-8', errors='strict') for v in dat]
         self.HDF5 = self._get_HDF5()
         self.GROUPS = self._get_GROUPS()
+        self.BOUNDARIES = self._get_group_boundaries()
 
     def __repr__(self):
         """
@@ -36,6 +41,7 @@ class H5dump(object):
 
     __str__ = __repr__
 
+    @functools.lru_cache(maxsize=32)
     def _regex_matcher_top(self, regex, retlist=True):
         """
         method to find top level matches within the file (HDF5, GROUPS)
@@ -52,6 +58,27 @@ class H5dump(object):
 
     _get_GROUPS = functools.partialmethod(_regex_matcher_top, group_re)
     _get_HDF5 = functools.partialmethod(_regex_matcher_top, hdf5_re)
+
+    def _get_group_boundaries(self):
+        """
+        Given a group name return the indices in `self.raw` that contain that groups info
+
+        :return: :class:`dict`, the groups and their boundaries
+        """
+        out = {}
+        for g in self.GROUPS:
+            ind1 = self.raw.index('GROUP "{}" {{'.format(g))
+            # starting at ind1 step forward until the open { matches the closed }
+            opens = 1
+            closed = 0
+            while opens > closed:
+                for ii in range(ind1 + 1, len(self.raw)):
+                    if '{' in self.raw[ii]:
+                        opens += 1
+                    if '}' in self.raw[ii]:
+                        closed += 1
+            out[g] = Boundary(type='GROUP', start=ind1, end=ii)
+        return out
 
 
 if __name__ == "__main__":
